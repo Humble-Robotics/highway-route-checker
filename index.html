@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>The 1000-Point Challenge — Driving Without Highways</title>
+<title>Highway Route Checker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -29,7 +29,9 @@
   #app { display: grid; grid-template-columns: 400px 1fr; height: 100vh; }
   #panel { background: var(--panel); padding: 22px; overflow-y: auto; border-right: 1px solid var(--line); }
   #map { height: 100vh; background: var(--bg); position: relative; }
-  h1 { margin: 0 0 4px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
+  .panel-header { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+  .panel-header img { height: 28px; width: auto; }
+  h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
     font-family: Poppins, Arial, sans-serif; color: #FFFFFF; }
   .tagline { color: var(--muted); font-size: 13px; margin: 0 0 22px 0; line-height: 1.5; }
   h2 { font-size: 11px; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase;
@@ -79,12 +81,6 @@
   .stat .value.red    { color: var(--warn); }
   .stat .value.yellow { color: var(--depot); }
   .stat .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .implications { font-size: 13px; line-height: 1.65; color: var(--text); background: var(--card);
-    padding: 14px; border-radius: 10px; border-left: 3px solid var(--accent); margin-top: 8px; }
-  .implications p { margin: 0 0 10px 0; }
-  .implications p:last-child { margin-bottom: 0; }
-  .implications code { font-family: 'JetBrains Mono', monospace; font-size: 11px;
-    background: var(--card-2); padding: 1px 5px; border-radius: 4px; }
   .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--muted); }
   .swatch { display: inline-block; width: 14px; height: 3px; vertical-align: middle;
     margin-right: 5px; border-radius: 2px; }
@@ -115,8 +111,11 @@
 <body>
 <div id="app">
   <div id="panel">
-    <h1>The 1000-Point Challenge</h1>
-    <p class="tagline">Scatter 1,000 points around a depot. Route every one back — without touching a highway. How many can make it?</p>
+    <div class="panel-header">
+      <img src="https://cdn.prod.website-files.com/69b25c23c8c90dc5d8a7e2b2/69bc544b0f776feb866b90c9_footer-logo.png" alt="Humble Robotics">
+      <h1>Highway Route Checker</h1>
+    </div>
+    <p class="tagline">Scatter points around a depot. Route every one back — without touching a highway. How many can make it?</p>
 
     <h2>Location</h2>
     <input id="location" type="text" placeholder="City, region, or address" value="Dallas, TX">
@@ -130,7 +129,6 @@
 
     <button id="run">Begin the Challenge</button>
     <button id="toggle-hwy" class="secondary" disabled>Hide Highway Routes</button>
-    <button id="compare-overhead" class="secondary" disabled>Show Highway Overhead</button>
     <button id="reset" class="secondary" style="display:none;">Reset</button>
 
     <div id="progress" class="progress-shell" style="display:none;">
@@ -170,40 +168,12 @@
         </div>
       </div>
 
-      <h2>Implications</h2>
-      <div class="implications" id="implications">—</div>
-
       <div class="legend">
         <span><span class="depot-swatch"></span>Depot</span>
         <span><span class="swatch" style="background:#81F2B2"></span>Surface streets only</span>
         <span><span class="swatch" style="background:#EF6B2C;opacity:0.8"></span>Highway required</span>
       </div>
 
-      <div id="overhead-section" style="display:none;">
-        <h2>Highway overhead — surface-street routes</h2>
-        <div class="stat-grid">
-          <div class="stat">
-            <div class="label">Avg extra distance</div>
-            <div class="value" id="oh-avg">—</div>
-            <div class="sub">per trip vs highway route</div>
-          </div>
-          <div class="stat">
-            <div class="label">Median extra distance</div>
-            <div class="value" id="oh-median">—</div>
-            <div class="sub">50th percentile</div>
-          </div>
-          <div class="stat">
-            <div class="label">Overhead %</div>
-            <div class="value" id="oh-pct">—</div>
-            <div class="sub">vs avg highway distance (<span id="oh-avg-hwy">—</span>)</div>
-          </div>
-          <div class="stat">
-            <div class="label">Total extra km driven</div>
-            <div class="value" id="oh-total">—</div>
-            <div class="sub">across all surface-street trips</div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -242,15 +212,12 @@ let failedLayer = null;
 let depotMarker = null;
 let running = false;
 let hwyVisible = true;
-let successData = [];   // [{point, surfaceDist}, ...] for overhead comparison
-let depotCoords = null;
 
 // ---------- UI bindings ----------
 $('points').addEventListener('input', e => $('points-label').textContent = e.target.value);
 $('radius').addEventListener('input', e => $('radius-label').textContent = e.target.value);
 $('run').addEventListener('click', () => { if (!running) run(); });
 $('toggle-hwy').addEventListener('click', toggleHighway);
-$('compare-overhead').addEventListener('click', () => { if (!running) compareOverhead(); });
 $('reset').addEventListener('click', resetAll);
 
 // ---------- Geocoding ----------
@@ -325,28 +292,6 @@ async function routeToDepot(point, depot) {
   };
 }
 
-async function routeWithHighway(point, depot) {
-  const body = {
-    locations: [{ lat: point[0], lon: point[1] }, { lat: depot[0], lon: depot[1] }],
-    costing: 'auto',
-    costing_options: { auto: { use_highways: 1.0 } },
-    units: 'kilometers'
-  };
-  const res = await fetch('https://valhalla1.openstreetmap.de/route', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    let msg = res.statusText;
-    try { const j = await res.json(); msg = j.error || msg; } catch (_) {}
-    throw new Error(`HTTP ${res.status}: ${msg}`);
-  }
-  const data = await res.json();
-  if (!data.trip) throw new Error('Missing trip data');
-  return data.trip.summary.length * 1000; // meters
-}
-
 // ---------- Formatting ----------
 function formatDuration(seconds) {
   if (!isFinite(seconds) || seconds < 0) return '—';
@@ -375,9 +320,6 @@ async function run() {
 
   [successLayer, failedLayer, depotMarker].forEach(l => { if (l) map.removeLayer(l); });
   successLayer = failedLayer = depotMarker = null;
-  successData = []; depotCoords = null;
-  $('overhead-section').style.display = 'none';
-  $('compare-overhead').disabled = true;
 
   try {
     // 1. Geocode
@@ -386,7 +328,6 @@ async function run() {
     map.setView([location.lat, location.lon], 11);
 
     const depot = [location.lat, location.lon];
-    depotCoords = depot;
 
     // Depot marker
     depotMarker = L.circleMarker(depot, {
@@ -436,7 +377,6 @@ async function run() {
           successCount++;
           successDist += r.distance;
           successDur  += r.duration;
-          successData.push({ point: batch[j], surfaceDist: r.distance });
           L.polyline(latlngs, {
             color: '#81F2B2', weight: 1.5, opacity: 0.55,
             lineCap: 'round', lineJoin: 'round'
@@ -473,14 +413,9 @@ async function run() {
     $('res-avg-dist').textContent = (avgDist / 1000).toFixed(1) + ' km';
     $('res-total-dist').textContent = formatKm(successDist);
     $('res-total-time').textContent = formatDuration(successDur) + ' of surface-street driving';
-    $('implications').innerHTML = buildImplications(
-      successCount, hwyCount, errCount, successDist, successDur, radius,
-      location.name.split(',').slice(0, 2).join(',')
-    );
 
     $('results').style.display = 'block';
     $('toggle-hwy').disabled = false;
-    $('compare-overhead').disabled = false;
     $('reset').style.display = 'block';
     setTimeout(() => { $('progress').style.display = 'none'; }, 1500);
 
@@ -506,116 +441,6 @@ function toggleHighway() {
   hwyVisible = !hwyVisible;
 }
 
-// ---------- Highway overhead comparison ----------
-async function compareOverhead() {
-  if (!successData.length || !depotCoords) return;
-  running = true;
-  $('compare-overhead').disabled = true;
-  $('run').disabled = true;
-  $('progress').style.display = 'block';
-  setProgress(0, `Computing highway baseline for ${fmtInt(successData.length)} surface-street routes…`);
-
-  const CONCURRENT = 10;
-  const extras = [];   // extra meters (surface - highway) per route
-  let errCount = 0;
-
-  for (let i = 0; i < successData.length; i += CONCURRENT) {
-    const batch = successData.slice(i, i + CONCURRENT);
-    const pct = Math.round((i / successData.length) * 100);
-    setProgress(pct, `Highway baseline ${fmtInt(Math.min(i + batch.length, successData.length))} of ${fmtInt(successData.length)}…`);
-
-    const results = await Promise.all(
-      batch.map(({ point }) =>
-        routeWithHighway(point, depotCoords).catch(e => ({ error: e.message }))
-      )
-    );
-
-    for (let j = 0; j < results.length; j++) {
-      const r = results[j];
-      if (r && r.error) { errCount++; continue; }
-      extras.push(batch[j].surfaceDist - r);
-    }
-
-    await sleep(80);
-  }
-
-  setProgress(100, 'Overhead comparison complete.');
-  setTimeout(() => { $('progress').style.display = 'none'; }, 1200);
-
-  if (!extras.length) { running = false; $('run').disabled = false; return; }
-
-  const avgExtra   = extras.reduce((a, b) => a + b, 0) / extras.length;
-  const totalExtra = extras.reduce((a, b) => a + b, 0);
-  const medExtra   = [...extras].sort((a, b) => a - b)[Math.floor(extras.length / 2)];
-
-  // % overhead: avgExtra / avg highway distance
-  const totalHwyDist = successData.reduce((a, d) => a + d.surfaceDist, 0) - totalExtra;
-  const avgHwyDist   = totalHwyDist / extras.length;
-  const pctOverhead  = avgHwyDist > 0 ? (avgExtra / avgHwyDist * 100) : 0;
-
-  $('oh-avg').textContent    = (avgExtra  / 1000).toFixed(2) + ' km';
-  $('oh-median').textContent = (medExtra  / 1000).toFixed(2) + ' km';
-  $('oh-total').textContent  = (totalExtra / 1000).toFixed(0) + ' km';
-  $('oh-pct').textContent    = (pctOverhead >= 0 ? '+' : '') + pctOverhead.toFixed(1) + '%';
-  $('oh-avg-hwy').textContent = (avgHwyDist / 1000).toFixed(1) + ' km';
-  $('overhead-section').style.display = 'block';
-
-  running = false;
-  $('run').disabled = false;
-  $('compare-overhead').disabled = false;
-}
-
-// ---------- Implications ----------
-function buildImplications(success, hwy, errors, dist, dur, radiusKm, placeName) {
-  const total = success + hwy + errors;
-  const pct = total > 0 ? (success / total * 100) : 0;
-  const km = dist / 1000;
-  const avgKm = success > 0 ? km / success : 0;
-
-  let verdict;
-  if (pct >= 90) {
-    verdict = `Over 90% of destinations in this area can reach the depot on surface streets alone.
-      The local grid is dense and well-connected — highways add speed here, but they're rarely the only path.`;
-  } else if (pct >= 70) {
-    verdict = `A strong majority can get through without touching a highway.
-      The ${hwy.toLocaleString()} that couldn't likely sit behind geographic barriers —
-      river crossings, rail corridors, or dead-end industrial zones where the surface grid breaks down.`;
-  } else if (pct >= 50) {
-    verdict = `About half the area is highway-dependent to reach this depot.
-      Surface connectivity is fragmented — many destinations face a broken grid that forces
-      them onto the highway system whether they intend to be there or not.`;
-  } else {
-    verdict = `The majority of destinations here cannot reach the depot without a highway.
-      This reveals deep highway dependency: the surface street network is not a functional
-      substitute for the freeway grid in this region.`;
-  }
-
-  const co2Kg = (km * 0.180).toFixed(0);
-  const gallons = (km * 0.107).toFixed(0);
-
-  return `
-    <p><strong>${success.toLocaleString()} of ${total.toLocaleString()} points</strong>
-    (${pct.toFixed(1)}%) in a ${(2 * radiusKm).toFixed(0)} km-wide zone around
-    <em>${placeName}</em> can reach the central depot without using any highway. ${verdict}</p>
-
-    <p>Those ${success.toLocaleString()} surface-street trips cover a combined
-    <strong>${km.toFixed(0)} km</strong> (avg <strong>${avgKm.toFixed(1)} km/trip</strong>)
-    in <strong>${formatDuration(dur)}</strong> of driving —
-    equivalent to roughly <strong>${gallons} gallons</strong> of fuel and
-    <strong>${co2Kg} kg CO₂</strong> if all taken by an average gasoline car.</p>
-
-    <p>The <strong>${hwy.toLocaleString()} points that needed a highway</strong> mark the
-    fracture lines of the street network: spots where a freeway interchange, a river bend,
-    or a missing link forces any driver onto the highway system regardless of preference.</p>
-
-    ${errors > 0 ? `<p style="color:var(--muted);font-size:12px;">${errors} point(s) could not be routed and are excluded from totals.</p>` : ''}
-    <p style="color:var(--muted); font-size:12px;">
-    Routing via Valhalla (valhalla1.openstreetmap.de) with
-    <code>use_highways: 0.01</code>. A route is marked highway-required if Valhalla
-    used any motorway-class road despite heavy penalization.</p>
-  `;
-}
-
 // ---------- Helpers ----------
 function setProgress(pct, text) {
   $('progress-fill').style.width = pct + '%';
@@ -632,16 +457,13 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function resetAll() {
   [successLayer, failedLayer, depotMarker].forEach(l => { if (l) map.removeLayer(l); });
   successLayer = failedLayer = depotMarker = null;
-  successData = []; depotCoords = null;
   hwyVisible = true;
   $('results').style.display = 'none';
-  $('overhead-section').style.display = 'none';
   $('progress').style.display = 'none';
   $('overlay').style.display = 'none';
   $('reset').style.display = 'none';
   $('toggle-hwy').disabled = true;
   $('toggle-hwy').textContent = 'Hide Highway Routes';
-  $('compare-overhead').disabled = true;
   hideError();
 }
 </script>
