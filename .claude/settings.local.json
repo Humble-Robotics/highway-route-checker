@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); t=d['trip']; print\\('summary:', t['summary']\\); print\\('legs count:', len\\(t['legs']\\)\\); print\\('leg[0] shape[:50]:', t['legs'][0]['shape'][:50]\\)\")",
+      "Bash(curl -s -X POST https://valhalla1.openstreetmap.de/route -H 'Content-Type: application/json' -H 'Origin: null' -d '{\"locations\":[{\"lat\":32.7767,\"lon\":-96.7970},{\"lat\":32.8000,\"lon\":-96.8100}],\"costing\":\"auto\"}' -D -)",
+      "Bash(open *)"
+    ]
+  }
+}

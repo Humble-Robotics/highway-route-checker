@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The 1000-Point Challenge — Driving Without Highways</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #030101;
+    --panel:   #0C1F1A;
+    --card:    #181817;
+    --card-2:  #302F2E;
+    --line:    #5F5E5D;
+    --text:    #D6D4D1;
+    --muted:   #8F8E8B;
+    --accent:  #81F2B2;
+    --accent-2:#83ECFF;
+    --warn:    #EF6B2C;
+    --good:    #81F2B2;
+    --depot:   #EDFD9A;
+    --sage:    #173A31;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: Inter, 'Helvetica Neue', sans-serif; }
+  #app { display: grid; grid-template-columns: 400px 1fr; height: 100vh; }
+  #panel { background: var(--panel); padding: 22px; overflow-y: auto; border-right: 1px solid var(--line); }
+  #map { height: 100vh; background: var(--bg); position: relative; }
+  h1 { margin: 0 0 4px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
+    font-family: Poppins, Arial, sans-serif; color: #FFFFFF; }
+  .tagline { color: var(--muted); font-size: 13px; margin: 0 0 22px 0; line-height: 1.5; }
+  h2 { font-size: 11px; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase;
+    margin: 22px 0 10px 0; font-weight: 600; }
+  label { display: block; font-size: 13px; color: var(--text); margin-top: 12px; }
+  input[type="text"] {
+    width: 100%; padding: 11px 12px; background: var(--card); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; font-size: 14px; margin-top: 6px;
+    font-family: Inter, sans-serif;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  input[type="range"] { width: 100%; margin-top: 6px; accent-color: var(--accent); }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .row .val { color: var(--accent-2); font-variant-numeric: tabular-nums; font-weight: 600; }
+  button {
+    width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none;
+    background: linear-gradient(135deg, #EDFD9A, #81F2B2);
+    color: #030101; font-weight: 600; font-size: 14px; cursor: pointer;
+    font-family: Inter, sans-serif; transition: transform 0.1s, opacity 0.2s;
+  }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  button.secondary { background: var(--sage); border: 1px solid var(--line); color: var(--text); }
+  .progress-shell { background: var(--card); padding: 14px; border-radius: 10px; margin-top: 10px; }
+  .progress-bar { height: 5px; background: var(--card-2); border-radius: 99px; overflow: hidden; }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, #81F2B2, #83ECFF);
+    transition: width 0.3s; width: 0%;
+  }
+  .progress-text { font-size: 12px; color: var(--muted); margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; min-width: 0;
+  }
+  .stat.full { grid-column: 1 / -1; }
+  .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  .stat .value {
+    font-size: 22px; font-weight: 700; margin-top: 4px;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: Poppins, Arial, sans-serif;
+  }
+  .stat .value.green  { color: var(--good); }
+  .stat .value.red    { color: var(--warn); }
+  .stat .value.yellow { color: var(--depot); }
+  .stat .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .implications { font-size: 13px; line-height: 1.65; color: var(--text); background: var(--card);
+    padding: 14px; border-radius: 10px; border-left: 3px solid var(--accent); margin-top: 8px; }
+  .implications p { margin: 0 0 10px 0; }
+  .implications p:last-child { margin-bottom: 0; }
+  .implications code { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: var(--card-2); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .swatch { display: inline-block; width: 14px; height: 3px; vertical-align: middle;
+    margin-right: 5px; border-radius: 2px; }
+  .depot-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--depot); vertical-align: middle; margin-right: 5px; }
+  .error { background: rgba(239,107,44,0.12); border: 1px solid var(--warn); color: var(--warn);
+    padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+  .map-overlay {
+    position: absolute; top: 12px; right: 12px; z-index: 1000;
+    background: rgba(3,1,1,0.9); backdrop-filter: blur(8px);
+    padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line);
+    font-size: 12px; color: var(--text); pointer-events: none; min-width: 180px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .map-overlay .ov-row { display: flex; justify-content: space-between; gap: 16px; }
+  .map-overlay .ov-row + .ov-row { margin-top: 5px; }
+  .map-overlay .ov-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ov-green { color: var(--good); }
+  .ov-red   { color: var(--warn); }
+  .ov-muted { color: var(--muted); }
+  @media (max-width: 900px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    #panel { max-height: 50vh; }
+    #map { height: 50vh; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <h1>The 1000-Point Challenge</h1>
+    <p class="tagline">Scatter 1,000 points around a depot. Route every one back — without touching a highway. How many can make it?</p>
+
+    <h2>Location</h2>
+    <input id="location" type="text" placeholder="City, region, or address" value="Dallas, TX">
+
+    <h2>Parameters</h2>
+    <label class="row"><span>Number of points</span><span class="val" id="points-label">1000</span></label>
+    <input id="points" type="range" min="50" max="5000" value="1000" step="50">
+
+    <label class="row"><span>Spread radius</span><span class="val"><span id="radius-label">50</span> km</span></label>
+    <input id="radius" type="range" min="3" max="100" value="50">
+
+    <button id="run">Begin the Challenge</button>
+    <button id="toggle-hwy" class="secondary" disabled>Hide Highway Routes</button>
+    <button id="compare-overhead" class="secondary" disabled>Show Highway Overhead</button>
+    <button id="reset" class="secondary" style="display:none;">Reset</button>
+
+    <div id="progress" class="progress-shell" style="display:none;">
+      <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      <div class="progress-text" id="progress-text">Initializing…</div>
+    </div>
+
+    <div id="error-box" class="error" style="display:none;"></div>
+
+    <div id="results" style="display:none;">
+      <h2>Results</h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="label">Highway-free</div>
+          <div class="value green" id="res-success">—</div>
+          <div class="sub">reached depot on surface streets</div>
+        </div>
+        <div class="stat">
+          <div class="label">Highway required</div>
+          <div class="value red" id="res-failed">—</div>
+          <div class="sub">couldn't avoid it</div>
+        </div>
+        <div class="stat">
+          <div class="label">Success rate</div>
+          <div class="value yellow" id="res-pct">—</div>
+          <div class="sub" id="res-total-sub">of <span id="res-total">—</span> routed</div>
+        </div>
+        <div class="stat">
+          <div class="label">Avg no-hwy distance</div>
+          <div class="value" id="res-avg-dist">—</div>
+          <div class="sub">per trip to depot</div>
+        </div>
+        <div class="stat full">
+          <div class="label">Total highway-free driving</div>
+          <div class="value" id="res-total-dist">—</div>
+          <div class="sub" id="res-total-time">—</div>
+        </div>
+      </div>
+
+      <h2>Implications</h2>
+      <div class="implications" id="implications">—</div>
+
+      <div class="legend">
+        <span><span class="depot-swatch"></span>Depot</span>
+        <span><span class="swatch" style="background:#81F2B2"></span>Surface streets only</span>
+        <span><span class="swatch" style="background:#EF6B2C;opacity:0.8"></span>Highway required</span>
+      </div>
+
+      <div id="overhead-section" style="display:none;">
+        <h2>Highway overhead — surface-street routes</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="label">Avg extra distance</div>
+            <div class="value" id="oh-avg">—</div>
+            <div class="sub">per trip vs highway route</div>
+          </div>
+          <div class="stat">
+            <div class="label">Median extra distance</div>
+            <div class="value" id="oh-median">—</div>
+            <div class="sub">50th percentile</div>
+          </div>
+          <div class="stat">
+            <div class="label">Overhead %</div>
+            <div class="value" id="oh-pct">—</div>
+            <div class="sub">vs avg highway distance (<span id="oh-avg-hwy">—</span>)</div>
+          </div>
+          <div class="stat">
+            <div class="label">Total extra km driven</div>
+            <div class="value" id="oh-total">—</div>
+            <div class="sub">across all surface-street trips</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="map">
+    <div class="map-overlay" id="overlay" style="display:none;">
+      <div class="ov-row">
+        <span>Checked:</span>
+        <span class="ov-val ov-muted" id="ov-checked">0 / 0</span>
+      </div>
+      <div class="ov-row">
+        <span>Highway-free:</span>
+        <span class="ov-val ov-green" id="ov-success">0</span>
+      </div>
+      <div class="ov-row">
+        <span>Highway needed:</span>
+        <span class="ov-val ov-red" id="ov-failed">0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Map setup ----------
+const map = L.map('map', { zoomControl: true, preferCanvas: true })
+  .setView([32.7767, -96.7970], 11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png', {
+  attribution: '© OpenStreetMap, © CARTO',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+const $ = id => document.getElementById(id);
+
+// ---------- State ----------
+let successLayer = null;
+let failedLayer = null;
+let depotMarker = null;
+let running = false;
+let hwyVisible = true;
+let successData = [];   // [{point, surfaceDist}, ...] for overhead comparison
+let depotCoords = null;
+
+// ---------- UI bindings ----------
+$('points').addEventListener('input', e => $('points-label').textContent = e.target.value);
+$('radius').addEventListener('input', e => $('radius-label').textContent = e.target.value);
+$('run').addEventListener('click', () => { if (!running) run(); });
+$('toggle-hwy').addEventListener('click', toggleHighway);
+$('compare-overhead').addEventListener('click', () => { if (!running) compareOverhead(); });
+$('reset').addEventListener('click', resetAll);
+
+// ---------- Geocoding ----------
+async function geocode(query) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Geocoding service unavailable');
+  const data = await res.json();
+  if (!data || !data.length) throw new Error('Location not found. Try a city, state, or address.');
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), name: data[0].display_name };
+}
+
+// ---------- Point generation ----------
+function generatePoints(center, n, radiusKm) {
+  const points = [];
+  const radiusDeg = radiusKm / 111;
+  for (let i = 0; i < n; i++) {
+    const u = Math.random(), v = Math.random();
+    const r = radiusDeg * Math.sqrt(u);
+    const theta = 2 * Math.PI * v;
+    const dlat = r * Math.cos(theta);
+    const dlon = r * Math.sin(theta) / Math.cos(center.lat * Math.PI / 180);
+    points.push([center.lat + dlat, center.lon + dlon]);
+  }
+  return points;
+}
+
+// ---------- Valhalla routing ----------
+function decodePolyline6(encoded) {
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < encoded.length) {
+    let b, shift = 0, r = 0;
+    do { b = encoded.charCodeAt(index++) - 63; r |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (r & 1) ? ~(r >> 1) : (r >> 1);
+    shift = 0; r = 0;
+    do { b = encoded.charCodeAt(index++) - 63; r |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    coords.push([lng / 1e6, lat / 1e6]); // [lon, lat] for GeoJSON
+  }
+  return coords;
+}
+
+async function routeToDepot(point, depot) {
+  const body = {
+    locations: [
+      { lat: point[0], lon: point[1] },
+      { lat: depot[0], lon: depot[1] }
+    ],
+    costing: 'auto',
+    costing_options: { auto: { use_highways: 0.01 } },
+    units: 'kilometers'
+  };
+  const res = await fetch('https://valhalla1.openstreetmap.de/route', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.error || msg; } catch (_) {}
+    throw new Error(`HTTP ${res.status}: ${msg}`);
+  }
+  const data = await res.json();
+  if (!data.trip) throw new Error('Missing trip data');
+  const s = data.trip.summary;
+  return {
+    distance: s.length * 1000,        // meters
+    duration: s.time,                  // seconds
+    hasHighway: s.has_highway === true,
+    coords: decodePolyline6(data.trip.legs[0].shape)  // [[lon,lat],...]
+  };
+}
+
+async function routeWithHighway(point, depot) {
+  const body = {
+    locations: [{ lat: point[0], lon: point[1] }, { lat: depot[0], lon: depot[1] }],
+    costing: 'auto',
+    costing_options: { auto: { use_highways: 1.0 } },
+    units: 'kilometers'
+  };
+  const res = await fetch('https://valhalla1.openstreetmap.de/route', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.error || msg; } catch (_) {}
+    throw new Error(`HTTP ${res.status}: ${msg}`);
+  }
+  const data = await res.json();
+  if (!data.trip) throw new Error('Missing trip data');
+  return data.trip.summary.length * 1000; // meters
+}
+
+// ---------- Formatting ----------
+function formatDuration(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '—';
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+function formatKm(meters) { return (meters / 1000).toFixed(meters > 100000 ? 0 : 1) + ' km'; }
+function fmtInt(n) { return n.toLocaleString(); }
+
+// ---------- Main run ----------
+async function run() {
+  running = true;
+  hideError();
+  $('run').disabled = true;
+  $('toggle-hwy').disabled = true;
+  $('reset').style.display = 'none';
+  $('progress').style.display = 'block';
+  $('results').style.display = 'none';
+  $('overlay').style.display = 'block';
+  hwyVisible = true;
+  $('toggle-hwy').textContent = 'Hide Highway Routes';
+
+  [successLayer, failedLayer, depotMarker].forEach(l => { if (l) map.removeLayer(l); });
+  successLayer = failedLayer = depotMarker = null;
+  successData = []; depotCoords = null;
+  $('overhead-section').style.display = 'none';
+  $('compare-overhead').disabled = true;
+
+  try {
+    // 1. Geocode
+    setProgress(4, 'Locating ' + $('location').value + '…');
+    const location = await geocode($('location').value);
+    map.setView([location.lat, location.lon], 11);
+
+    const depot = [location.lat, location.lon];
+    depotCoords = depot;
+
+    // Depot marker
+    depotMarker = L.circleMarker(depot, {
+      radius: 9, color: '#EDFD9A', fillColor: '#EDFD9A', fillOpacity: 1, weight: 3
+    }).bindTooltip('Depot', { permanent: true, direction: 'right', offset: [12, 0],
+      className: 'depot-label' }).addTo(map);
+
+    // 2. Generate points
+    const n = parseInt($('points').value);
+    const radius = parseInt($('radius').value);
+    setProgress(8, `Scattering ${fmtInt(n)} points within ${radius} km…`);
+    await sleep(30);
+    const points = generatePoints(location, n, radius);
+
+    const allLatlngs = [depot, ...points];
+    map.fitBounds(L.latLngBounds(allLatlngs), { padding: [30, 30] });
+
+    // 3. Route each point to the depot
+    successLayer = L.layerGroup().addTo(map);
+    failedLayer  = L.layerGroup().addTo(map);
+
+    let successCount = 0, hwyCount = 0, errCount = 0;
+    let successDist = 0, successDur = 0;
+    const CONCURRENT = 10;
+
+    $('ov-checked').textContent = `0 / ${fmtInt(n)}`;
+    $('ov-success').textContent = '0';
+    $('ov-failed').textContent  = '0';
+
+    for (let i = 0; i < points.length; i += CONCURRENT) {
+      const batch = points.slice(i, i + CONCURRENT);
+      const checked = Math.min(i + batch.length, points.length);
+      const pct = 12 + Math.round((i / points.length) * 84);
+      setProgress(pct, `Routing ${fmtInt(checked)} of ${fmtInt(n)} to depot…`);
+
+      const results = await Promise.all(
+        batch.map(pt => routeToDepot(pt, depot).catch(e => ({ error: e.message })))
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        const r = results[j];
+        if (r.error) { errCount++; continue; }
+
+        const latlngs = r.coords.map(c => [c[1], c[0]]); // [lon,lat] → [lat,lon] for Leaflet
+
+        if (!r.hasHighway) {
+          successCount++;
+          successDist += r.distance;
+          successDur  += r.duration;
+          successData.push({ point: batch[j], surfaceDist: r.distance });
+          L.polyline(latlngs, {
+            color: '#81F2B2', weight: 1.5, opacity: 0.55,
+            lineCap: 'round', lineJoin: 'round'
+          }).addTo(successLayer);
+        } else {
+          hwyCount++;
+          L.polyline(latlngs, {
+            color: '#EF6B2C', weight: 1.5, opacity: 0.45,
+            dashArray: '5 4', lineCap: 'round'
+          }).addTo(failedLayer);
+        }
+      }
+
+      $('ov-checked').textContent = `${fmtInt(checked)} / ${fmtInt(n)}`;
+      $('ov-success').textContent  = fmtInt(successCount);
+      $('ov-failed').textContent   = fmtInt(hwyCount);
+
+      await sleep(80);
+    }
+
+    // 4. Display results
+    const total = successCount + hwyCount + errCount;
+    const pct = total > 0 ? (successCount / total * 100) : 0;
+    const avgDist = successCount > 0 ? successDist / successCount : 0;
+
+    setProgress(100, errCount > 0
+      ? `Done — ${fmtInt(errCount)} point(s) could not be routed`
+      : 'Done!');
+
+    $('res-success').textContent  = fmtInt(successCount);
+    $('res-failed').textContent   = fmtInt(hwyCount);
+    $('res-total').textContent    = fmtInt(total);
+    $('res-pct').textContent      = pct.toFixed(1) + '%';
+    $('res-avg-dist').textContent = (avgDist / 1000).toFixed(1) + ' km';
+    $('res-total-dist').textContent = formatKm(successDist);
+    $('res-total-time').textContent = formatDuration(successDur) + ' of surface-street driving';
+    $('implications').innerHTML = buildImplications(
+      successCount, hwyCount, errCount, successDist, successDur, radius,
+      location.name.split(',').slice(0, 2).join(',')
+    );
+
+    $('results').style.display = 'block';
+    $('toggle-hwy').disabled = false;
+    $('compare-overhead').disabled = false;
+    $('reset').style.display = 'block';
+    setTimeout(() => { $('progress').style.display = 'none'; }, 1500);
+
+  } catch (e) {
+    showError(e.message);
+    $('progress').style.display = 'none';
+  } finally {
+    $('run').disabled = false;
+    running = false;
+  }
+}
+
+// ---------- Toggle highway routes ----------
+function toggleHighway() {
+  if (!failedLayer) return;
+  if (hwyVisible) {
+    map.removeLayer(failedLayer);
+    $('toggle-hwy').textContent = 'Show Highway Routes';
+  } else {
+    failedLayer.addTo(map);
+    $('toggle-hwy').textContent = 'Hide Highway Routes';
+  }
+  hwyVisible = !hwyVisible;
+}
+
+// ---------- Highway overhead comparison ----------
+async function compareOverhead() {
+  if (!successData.length || !depotCoords) return;
+  running = true;
+  $('compare-overhead').disabled = true;
+  $('run').disabled = true;
+  $('progress').style.display = 'block';
+  setProgress(0, `Computing highway baseline for ${fmtInt(successData.length)} surface-street routes…`);
+
+  const CONCURRENT = 10;
+  const extras = [];   // extra meters (surface - highway) per route
+  let errCount = 0;
+
+  for (let i = 0; i < successData.length; i += CONCURRENT) {
+    const batch = successData.slice(i, i + CONCURRENT);
+    const pct = Math.round((i / successData.length) * 100);
+    setProgress(pct, `Highway baseline ${fmtInt(Math.min(i + batch.length, successData.length))} of ${fmtInt(successData.length)}…`);
+
+    const results = await Promise.all(
+      batch.map(({ point }) =>
+        routeWithHighway(point, depotCoords).catch(e => ({ error: e.message }))
+      )
+    );
+
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
+      if (r && r.error) { errCount++; continue; }
+      extras.push(batch[j].surfaceDist - r);
+    }
+
+    await sleep(80);
+  }
+
+  setProgress(100, 'Overhead comparison complete.');
+  setTimeout(() => { $('progress').style.display = 'none'; }, 1200);
+
+  if (!extras.length) { running = false; $('run').disabled = false; return; }
+
+  const avgExtra   = extras.reduce((a, b) => a + b, 0) / extras.length;
+  const totalExtra = extras.reduce((a, b) => a + b, 0);
+  const medExtra   = [...extras].sort((a, b) => a - b)[Math.floor(extras.length / 2)];
+
+  // % overhead: avgExtra / avg highway distance
+  const totalHwyDist = successData.reduce((a, d) => a + d.surfaceDist, 0) - totalExtra;
+  const avgHwyDist   = totalHwyDist / extras.length;
+  const pctOverhead  = avgHwyDist > 0 ? (avgExtra / avgHwyDist * 100) : 0;
+
+  $('oh-avg').textContent    = (avgExtra  / 1000).toFixed(2) + ' km';
+  $('oh-median').textContent = (medExtra  / 1000).toFixed(2) + ' km';
+  $('oh-total').textContent  = (totalExtra / 1000).toFixed(0) + ' km';
+  $('oh-pct').textContent    = (pctOverhead >= 0 ? '+' : '') + pctOverhead.toFixed(1) + '%';
+  $('oh-avg-hwy').textContent = (avgHwyDist / 1000).toFixed(1) + ' km';
+  $('overhead-section').style.display = 'block';
+
+  running = false;
+  $('run').disabled = false;
+  $('compare-overhead').disabled = false;
+}
+
+// ---------- Implications ----------
+function buildImplications(success, hwy, errors, dist, dur, radiusKm, placeName) {
+  const total = success + hwy + errors;
+  const pct = total > 0 ? (success / total * 100) : 0;
+  const km = dist / 1000;
+  const avgKm = success > 0 ? km / success : 0;
+
+  let verdict;
+  if (pct >= 90) {
+    verdict = `Over 90% of destinations in this area can reach the depot on surface streets alone.
+      The local grid is dense and well-connected — highways add speed here, but they're rarely the only path.`;
+  } else if (pct >= 70) {
+    verdict = `A strong majority can get through without touching a highway.
+      The ${hwy.toLocaleString()} that couldn't likely sit behind geographic barriers —
+      river crossings, rail corridors, or dead-end industrial zones where the surface grid breaks down.`;
+  } else if (pct >= 50) {
+    verdict = `About half the area is highway-dependent to reach this depot.
+      Surface connectivity is fragmented — many destinations face a broken grid that forces
+      them onto the highway system whether they intend to be there or not.`;
+  } else {
+    verdict = `The majority of destinations here cannot reach the depot without a highway.
+      This reveals deep highway dependency: the surface street network is not a functional
+      substitute for the freeway grid in this region.`;
+  }
+
+  const co2Kg = (km * 0.180).toFixed(0);
+  const gallons = (km * 0.107).toFixed(0);
+
+  return `
+    <p><strong>${success.toLocaleString()} of ${total.toLocaleString()} points</strong>
+    (${pct.toFixed(1)}%) in a ${(2 * radiusKm).toFixed(0)} km-wide zone around
+    <em>${placeName}</em> can reach the central depot without using any highway. ${verdict}</p>
+
+    <p>Those ${success.toLocaleString()} surface-street trips cover a combined
+    <strong>${km.toFixed(0)} km</strong> (avg <strong>${avgKm.toFixed(1)} km/trip</strong>)
+    in <strong>${formatDuration(dur)}</strong> of driving —
+    equivalent to roughly <strong>${gallons} gallons</strong> of fuel and
+    <strong>${co2Kg} kg CO₂</strong> if all taken by an average gasoline car.</p>
+
+    <p>The <strong>${hwy.toLocaleString()} points that needed a highway</strong> mark the
+    fracture lines of the street network: spots where a freeway interchange, a river bend,
+    or a missing link forces any driver onto the highway system regardless of preference.</p>
+
+    ${errors > 0 ? `<p style="color:var(--muted);font-size:12px;">${errors} point(s) could not be routed and are excluded from totals.</p>` : ''}
+    <p style="color:var(--muted); font-size:12px;">
+    Routing via Valhalla (valhalla1.openstreetmap.de) with
+    <code>use_highways: 0.01</code>. A route is marked highway-required if Valhalla
+    used any motorway-class road despite heavy penalization.</p>
+  `;
+}
+
+// ---------- Helpers ----------
+function setProgress(pct, text) {
+  $('progress-fill').style.width = pct + '%';
+  if (text) $('progress-text').textContent = text;
+}
+function showError(msg) {
+  const box = $('error-box');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+function hideError() { $('error-box').style.display = 'none'; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function resetAll() {
+  [successLayer, failedLayer, depotMarker].forEach(l => { if (l) map.removeLayer(l); });
+  successLayer = failedLayer = depotMarker = null;
+  successData = []; depotCoords = null;
+  hwyVisible = true;
+  $('results').style.display = 'none';
+  $('overhead-section').style.display = 'none';
+  $('progress').style.display = 'none';
+  $('overlay').style.display = 'none';
+  $('reset').style.display = 'none';
+  $('toggle-hwy').disabled = true;
+  $('toggle-hwy').textContent = 'Hide Highway Routes';
+  $('compare-overhead').disabled = true;
+  hideError();
+}
+</script>
+</body>
+</html>
