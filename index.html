@@ -121,11 +121,11 @@
     <input id="location" type="text" placeholder="City, region, or address" value="Dallas, TX">
 
     <h2>Parameters</h2>
-    <label class="row"><span>Number of points</span><span class="val" id="points-label">1000</span></label>
-    <input id="points" type="range" min="50" max="5000" value="1000" step="50">
+    <label class="row"><span>Number of points</span><span class="val" id="points-label">300</span></label>
+    <input id="points" type="range" min="50" max="1000" value="300" step="50">
 
-    <label class="row"><span>Spread radius</span><span class="val"><span id="radius-label">50</span> km</span></label>
-    <input id="radius" type="range" min="3" max="100" value="50">
+    <label class="row"><span>Spread radius</span><span class="val"><span id="radius-label">20</span> km</span></label>
+    <input id="radius" type="range" min="3" max="50" value="20">
 
     <button id="run">Begin the Challenge</button>
     <button id="toggle-hwy" class="secondary" disabled>Hide Highway Routes</button>
@@ -175,6 +175,10 @@
       <div class="ov-row">
         <span>Highway needed:</span>
         <span class="ov-val ov-red" id="ov-failed">0</span>
+      </div>
+      <div class="ov-row">
+        <span>API errors:</span>
+        <span class="ov-val ov-muted" id="ov-errors">0</span>
       </div>
     </div>
   </div>
@@ -335,11 +339,13 @@ async function run() {
     failedLayer  = L.layerGroup().addTo(map);
 
     let successCount = 0, hwyCount = 0, errCount = 0;
-    const CONCURRENT = 10;
+    const CONCURRENT = 4;
 
     $('ov-checked').textContent = `0 / ${fmtInt(n)}`;
     $('ov-success').textContent = '0';
     $('ov-failed').textContent  = '0';
+    $('ov-errors').textContent  = '0';
+
 
     for (let i = 0; i < points.length; i += CONCURRENT) {
       const batch = points.slice(i, i + CONCURRENT);
@@ -376,7 +382,8 @@ async function run() {
       $('ov-success').textContent  = fmtInt(successCount);
       $('ov-failed').textContent   = fmtInt(hwyCount);
 
-      await sleep(80);
+      $('ov-errors').textContent = errCount > 0 ? fmtInt(errCount) : '0';
+      await sleep(300);
     }
 
     // 4. Display results
@@ -437,6 +444,7 @@ function resetAll() {
   $('reset').style.display = 'none';
   $('toggle-hwy').disabled = true;
   $('toggle-hwy').textContent = 'Hide Highway Routes';
+  $('ov-errors').textContent = '0';
   hideError();
 }
 </script>
