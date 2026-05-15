@@ -118,7 +118,7 @@
     <p class="tagline">Scatter points around a depot. Route every one back — without touching a highway. How many can make it?</p>
 
     <h2>Location</h2>
-    <input id="location" type="text" placeholder="City, region, or address" value="Dallas, TX">
+    <input id="location" type="text" placeholder="City, region, or address" value="Rialto, CA">
 
     <h2>Parameters</h2>
     <label class="row"><span>Number of points</span><span class="val" id="points-label">300</span></label>
@@ -187,7 +187,7 @@
 <script>
 // ---------- Map setup ----------
 const map = L.map('map', { zoomControl: true, preferCanvas: true })
-  .setView([32.7767, -96.7970], 11);
+  .setView([34.1064, -117.3703], 11);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png', {
   attribution: '© OpenStreetMap, © CARTO',
   subdomains: 'abcd', maxZoom: 19
