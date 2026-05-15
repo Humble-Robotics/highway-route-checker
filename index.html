@@ -151,21 +151,6 @@
           <div class="value red" id="res-failed">—</div>
           <div class="sub">couldn't avoid it</div>
         </div>
-        <div class="stat">
-          <div class="label">Success rate</div>
-          <div class="value yellow" id="res-pct">—</div>
-          <div class="sub" id="res-total-sub">of <span id="res-total">—</span> routed</div>
-        </div>
-        <div class="stat">
-          <div class="label">Avg no-hwy distance</div>
-          <div class="value" id="res-avg-dist">—</div>
-          <div class="sub">per trip to depot</div>
-        </div>
-        <div class="stat full">
-          <div class="label">Total highway-free driving</div>
-          <div class="value" id="res-total-dist">—</div>
-          <div class="sub" id="res-total-time">—</div>
-        </div>
       </div>
 
       <div class="legend">
@@ -350,7 +335,6 @@ async function run() {
     failedLayer  = L.layerGroup().addTo(map);
 
     let successCount = 0, hwyCount = 0, errCount = 0;
-    let successDist = 0, successDur = 0;
     const CONCURRENT = 10;
 
     $('ov-checked').textContent = `0 / ${fmtInt(n)}`;
@@ -375,8 +359,6 @@ async function run() {
 
         if (!r.hasHighway) {
           successCount++;
-          successDist += r.distance;
-          successDur  += r.duration;
           L.polyline(latlngs, {
             color: '#81F2B2', weight: 1.5, opacity: 0.55,
             lineCap: 'round', lineJoin: 'round'
@@ -398,21 +380,12 @@ async function run() {
     }
 
     // 4. Display results
-    const total = successCount + hwyCount + errCount;
-    const pct = total > 0 ? (successCount / total * 100) : 0;
-    const avgDist = successCount > 0 ? successDist / successCount : 0;
-
     setProgress(100, errCount > 0
       ? `Done — ${fmtInt(errCount)} point(s) could not be routed`
       : 'Done!');
 
     $('res-success').textContent  = fmtInt(successCount);
     $('res-failed').textContent   = fmtInt(hwyCount);
-    $('res-total').textContent    = fmtInt(total);
-    $('res-pct').textContent      = pct.toFixed(1) + '%';
-    $('res-avg-dist').textContent = (avgDist / 1000).toFixed(1) + ' km';
-    $('res-total-dist').textContent = formatKm(successDist);
-    $('res-total-time').textContent = formatDuration(successDur) + ' of surface-street driving';
 
     $('results').style.display = 'block';
     $('toggle-hwy').disabled = false;
